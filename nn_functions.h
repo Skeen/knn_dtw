@@ -136,6 +136,7 @@ int one_NN_single(taggedTS query,
 
     best_dtw = 99999999;
 
+	#pragma omp parallel for
     for (int i = 0; i < dataset.size(); ++i) {
 
         if (dataset[i].id == query.id) {
@@ -147,10 +148,14 @@ int one_NN_single(taggedTS query,
         double this_result =
           fastDTWdist(query, dataset[i], use_time_domain);
 
-        if (this_result < best_dtw) {
-            best_dtw = this_result;
-            prediction = dataset[i];
-        }
+		#pragma omp critical
+		{
+        	if (this_result < best_dtw) 
+			{
+        		best_dtw = this_result;
+        		prediction = dataset[i];
+        	}
+		}
     }
 
     return (query.ts_tag.compare(prediction.ts_tag) == 0);
@@ -164,7 +169,7 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
 	
    	int successes = 0;
 	
-	#pragma omp parallel for reduction(+:successes)
+	//#pragma omp parallel for reduction(+:successes)
     for (int i = 0; i < queryset.size(); ++i) 
 	{
     	double best_dtw;
