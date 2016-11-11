@@ -168,7 +168,10 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
 	//unsigned int concurrency = std::thread::hardware_concurrency();
 	
    	int successes = 0;
-	
+
+	cout << "{" << endl;
+	cout << " data : [" << endl;
+
 	//#pragma omp parallel for reduction(+:successes)
     for (int i = 0; i < queryset.size(); ++i) 
 	{
@@ -179,15 +182,36 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
                                    best_dtw,
                                    prediction,
                                    use_time_domain);
-
-        cout << "nearest neighbor: " << prediction.ts_tag << " (UID: " << prediction.UID
-             << ") with distance " << best_dtw << ". ground: " << queryset[i].ts_tag
-             << " (UID: " << queryset[i].UID << ")" << endl;
+		cout << "{" << endl;
+		cout << "nearest_neighbor : '" << prediction.ts_tag << "'," << endl;
+		cout << "UID : '" << prediction.UID << "'," << endl;
+		cout << "distance : " << best_dtw << "," << endl;
+		cout << "ground_truth : '" << queryset[i].ts_tag << "'," << endl;
+		cout << "ground_truth_UID : '" << queryset[i].UID << "'" << endl;
+		
+		if(i == queryset.size() -1)
+		{
+			cout << "}"  << endl;
+		}
+		else
+		{
+			cout << "}," << endl;
+		}
+        //cout << "nearest neighbor: " << prediction.ts_tag << " (UID: " << prediction.UID
+        //     << ") with distance " << best_dtw << ". ground: " << queryset[i].ts_tag
+        //     << " (UID: " << queryset[i].UID << ")" << endl;
     }
 
     fflush(stdout);
 
-    cout << successes << " successes in " << queryset.size() << " trials: " << int ((float) 100*successes / queryset.size()) << "\% accuracy.\n";
+	cout << "]," << endl;
+	cout << "result : { " << endl;
+	cout << "successes : " << successes << "," << endl;
+	cout << "trials : " << queryset.size() << "," << endl;
+	cout << "accuracy : " << ((float) 100*successes / queryset.size()) << endl;
+	cout << "}" << endl;
+	cout << "}" << endl;
+    //cout << successes << " successes in " << queryset.size() << " trials: " << int ((float) 100*successes / queryset.size()) << "\% accuracy.\n";
     return successes;
 	//return 0;
 }
