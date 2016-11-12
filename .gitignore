@@ -1,4 +1,4 @@
-reated by https://www.gitignore.io/api/c++
+#Created by https://www.gitignore.io/api/c++
 
 ### C++ ###
 # Prerequisites
@@ -9,7 +9,6 @@ reated by https://www.gitignore.io/api/c++
 *.lo
 *.o
 *.obj
-*.run
 
 # Precompiled Headers
 *.gch
