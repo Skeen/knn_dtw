@@ -195,6 +195,7 @@ int kNN_single(taggedTS query,
     {
         sum += it->second / countmap[it->first];
     }
+    best_dtw = 0;
     // Output data
     for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
     {
