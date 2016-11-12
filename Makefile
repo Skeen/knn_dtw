@@ -35,5 +35,4 @@ clean:
 	rm -rf obj/
 	rm includes/cmdline.*
 
-.SECONDARY: cmdout
 .PHONY: clean all
