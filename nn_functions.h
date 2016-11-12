@@ -140,7 +140,7 @@ void kNN_worker(taggedTS query,
     for (int i = 0; i < dataset.size(); ++i) {
 
         if (dataset[i].id == query.id) {
-            cout << "WARNING: query series is in reference space. Skipping it!\n";
+            cerr << "WARNING: query series is in reference space. Skipping it!\n";
             ++i;
             continue;
         }
@@ -159,7 +159,7 @@ void kNN_worker(taggedTS query,
 //predicted value is correct, 0 o/w.
 int kNN_single(taggedTS query,
                   std::vector<taggedTS> dataset,
-                  double& best_dtw,
+                  double& accuracy,
                   std::string& prediction,
                   int n,
                   int use_time_domain) {
@@ -195,7 +195,7 @@ int kNN_single(taggedTS query,
     {
         sum += it->second / countmap[it->first];
     }
-    best_dtw = 0;
+    accuracy = 0;
     // Output data
     for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
     {
@@ -207,9 +207,9 @@ int kNN_single(taggedTS query,
         //std::cout << it->first << " => " << percentage * 100 << "%" <<
         //   "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
 
-        if(percentage > best_dtw)
+        if(percentage > accuracy)
         {
-            best_dtw = percentage;
+            accuracy = percentage;
             prediction = it->first;
         }
     }
@@ -250,6 +250,62 @@ namespace std
     }
 }
 
+// Double quote a string
+// alfa --> "alfa"
+auto qs = [](std::string str)
+{
+    return "\"" + str + "\"";
+};
+// Create a key-value pair for json
+// alfa, beta --> alfa : beta,\n
+auto kv = [](std::string str, auto value, bool comma = true)
+{
+    return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
+};
+
+
+int report_kNN_single(taggedTS query,
+                  std::vector<taggedTS> dataset,
+                  int n,
+                  int use_time_domain,
+                  bool last)
+{
+    bool succes = false;
+
+    cout << "{" << endl;
+    if(n == 1)
+    {
+        double best_dtw;
+        taggedTS prediction;
+        succes = one_NN_single(query,
+                                   dataset,
+                                   best_dtw,
+                                   prediction,
+                                   use_time_domain);
+        cout << kv(qs("nearest_neighbor"), qs(prediction.ts_tag));
+        cout << kv(qs("nearest_neighbor_UID"), qs(prediction.UID));
+        cout << kv(qs("distance"), best_dtw);
+    }
+    else
+    {
+        double accuracy;
+        std::string prediction;
+        succes = kNN_single(query,
+                                   dataset,
+                                   accuracy,
+                                   prediction,
+                                   n,
+                                   use_time_domain);
+        cout << kv(qs("nearest_neighbor"), qs(prediction));
+        cout << kv(qs("accuracy"), accuracy);
+    }
+    cout << kv(qs("ground_truth"), qs(query.ts_tag));
+    cout << kv(qs("ground_truth_UID"), qs(query.UID), false);
+    cout << "}" << (last ? "" : ",") << endl;
+
+    return (succes ? 1 : 0);
+}
+
 //compares query *list* against dataset. returns
 //number of correct classifications.
 int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain, int knn) 
@@ -260,19 +316,7 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
         knn = dataset.size() / 2;
     }
 
-    // Double quote a string
-    // alfa --> "alfa"
-    auto qs = [](std::string str)
-    {
-        return "\"" + str + "\"";
-    };
-    // Create a key-value pair for json
-    // alfa, beta --> alfa : beta,\n
-    auto kv = [](std::string str, auto value, bool comma = true)
-    {
-        return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
-    };
-	
+
    	int successes = 0;
 
 	cout << "{" << endl;
@@ -281,30 +325,11 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
 	//#pragma omp parallel for reduction(+:successes)
     for (int i = 0; i < queryset.size(); ++i) 
 	{
-        double best_dtw;
-        std::string prediction;
-    	//taggedTS prediction;
-        successes += kNN_single(queryset[i],
-                                   dataset,
-                                   best_dtw,
-                                   prediction,
-                                   knn,
-                                   use_time_domain);
-		cout << "{" << endl;
-		cout << kv(qs("nearest_neighbor"), qs(prediction));
-		//cout << kv(qs("UID"), qs(prediction.UID));
-		cout << kv(qs("accuracy"), best_dtw);
-		cout << kv(qs("ground_truth"), qs(queryset[i].ts_tag));
-		cout << kv(qs("ground_truth_UID"), qs(queryset[i].UID), false);
-		
-		if(i == queryset.size() -1)
-		{
-			cout << "}"  << endl;
-		}
-		else
-		{
-			cout << "}," << endl;
-		}
+        successes += report_kNN_single(queryset[i],
+                               dataset,
+                               knn,
+                               use_time_domain,
+                               (i == queryset.size()-1));
     }
 
     fflush(stdout);
