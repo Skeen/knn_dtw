@@ -161,16 +161,36 @@ int one_NN_single(taggedTS query,
     return (query.ts_tag.compare(prediction.ts_tag) == 0);
 }
 
+// Identity std::to_string
+namespace std
+{
+    std::string to_string(std::string str)
+    {
+        return str;
+    }
+}
+
 //compares query *list* against dataset. returns
 //number of correct classifications.
 int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain) 
 {
-	//unsigned int concurrency = std::thread::hardware_concurrency();
+    // Double quote a string
+    // alfa --> "alfa"
+    auto qs = [](std::string str)
+    {
+        return "\"" + str + "\"";
+    };
+    // Create a key-value pair for json
+    // alfa, beta --> alfa : beta,\n
+    auto kv = [](std::string str, auto value, bool comma = true)
+    {
+        return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
+    };
 	
    	int successes = 0;
 
 	cout << "{" << endl;
-	cout << " data : [" << endl;
+    cout << kv(qs("data"), "[", false);
 
 	//#pragma omp parallel for reduction(+:successes)
     for (int i = 0; i < queryset.size(); ++i) 
@@ -183,11 +203,11 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
                                    prediction,
                                    use_time_domain);
 		cout << "{" << endl;
-		cout << "nearest_neighbor : '" << prediction.ts_tag << "'," << endl;
-		cout << "UID : '" << prediction.UID << "'," << endl;
-		cout << "distance : " << best_dtw << "," << endl;
-		cout << "ground_truth : '" << queryset[i].ts_tag << "'," << endl;
-		cout << "ground_truth_UID : '" << queryset[i].UID << "'" << endl;
+		cout << kv(qs("nearest_neighbor"), qs(prediction.ts_tag));
+		cout << kv(qs("UID"), qs(prediction.UID));
+		cout << kv(qs("distance"), best_dtw);
+		cout << kv(qs("ground_truth"), qs(queryset[i].ts_tag));
+		cout << kv(qs("ground_truth_UID"), qs(queryset[i].UID), false);
 		
 		if(i == queryset.size() -1)
 		{
@@ -197,23 +217,18 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
 		{
 			cout << "}," << endl;
 		}
-        //cout << "nearest neighbor: " << prediction.ts_tag << " (UID: " << prediction.UID
-        //     << ") with distance " << best_dtw << ". ground: " << queryset[i].ts_tag
-        //     << " (UID: " << queryset[i].UID << ")" << endl;
     }
 
     fflush(stdout);
 
 	cout << "]," << endl;
-	cout << "result : { " << endl;
-	cout << "successes : " << successes << "," << endl;
-	cout << "trials : " << queryset.size() << "," << endl;
-	cout << "accuracy : " << ((float) 100*successes / queryset.size()) << endl;
+	cout << kv(qs("result"), "{", false);
+	cout << kv(qs("successes"), successes);
+	cout << kv(qs("trials"), queryset.size());
+	cout << kv(qs("accuracy"), ((float) 100*successes / queryset.size()), false);
 	cout << "}" << endl;
 	cout << "}" << endl;
-    //cout << successes << " successes in " << queryset.size() << " trials: " << int ((float) 100*successes / queryset.size()) << "\% accuracy.\n";
     return successes;
-	//return 0;
 }
 
 int cluster_std_dev(std::vector<taggedTS>::iterator cluster,
