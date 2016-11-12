@@ -1,5 +1,14 @@
 #Created by https://www.gitignore.io/api/c++
 
+# Generated files
+includes/cmdline.c
+includes/cmdline.h
+
+# Editor files
+*.swp
+*.swo
+*~
+
 ### C++ ###
 # Prerequisites
 *.d
