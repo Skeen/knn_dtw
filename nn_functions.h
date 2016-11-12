@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <cstring>
 #include <cmath>
+#include <tuple>
+#include <numeric>
+#include <map>
 
 #include "DTW.h"
 #include "FastDTW.h"
@@ -128,13 +131,10 @@ std::vector<taggedTS> load_TSfile(std::string fname, int verbose) {
 
 //compares query against dataset. returns 1 if
 //predicted value is correct, 0 o/w.
-int one_NN_single(taggedTS query,
+void kNN_worker(taggedTS query,
                   std::vector<taggedTS> dataset,
-                  double& best_dtw,
-                  taggedTS& prediction,
+                  std::vector<std::tuple<double, taggedTS>>& results,
                   int use_time_domain) {
-
-    best_dtw = 99999999;
 
 	#pragma omp parallel for
     for (int i = 0; i < dataset.size(); ++i) {
@@ -149,15 +149,94 @@ int one_NN_single(taggedTS query,
           fastDTWdist(query, dataset[i], use_time_domain);
 
 		#pragma omp critical
-		{
-        	if (this_result < best_dtw) 
-			{
-        		best_dtw = this_result;
-        		prediction = dataset[i];
-        	}
-		}
+        {
+            results.emplace_back(this_result, dataset[i]);
+        }
     }
+}
 
+//compares query against dataset. returns 1 if
+//predicted value is correct, 0 o/w.
+int kNN_single(taggedTS query,
+                  std::vector<taggedTS> dataset,
+                  double& best_dtw,
+                  std::string& prediction,
+                  int n,
+                  int use_time_domain) {
+
+    std::vector<std::tuple<double, taggedTS>> results;
+    // Run kNN
+    kNN_worker(query, dataset, results, use_time_domain);
+    // Sort the readings according to distance
+    // TODO: Use nth_element instead
+    std::sort(results.begin(), results.end(),
+            [](std::tuple<double, taggedTS> o1, std::tuple<double, taggedTS> o2)
+    {
+        return std::get<0>(o1) < std::get<0>(o2);
+    });
+    // Calculate the most occuring element
+    std::map<std::string, double> distmap;
+    std::map<std::string, int> countmap;
+
+    // Weight function, '1 / distance' ensures that the closest neighbours count the most
+    auto weightf = [](double distance)
+    {
+        return 1 / distance;
+    };
+    // Find cummulative distance
+    for(int x=0; x<n; x++)
+    {
+        distmap[std::get<1>(results[x]).ts_tag] += weightf(std::get<0>(results[x]));
+        countmap[std::get<1>(results[x]).ts_tag]++;
+    }
+    // Find sum of cummulative distances
+    double sum = 0;
+    for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
+    {
+        sum += it->second / countmap[it->first];
+    }
+    // Output data
+    for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
+    {
+        double total_distance = it->second;
+        int num_readings = countmap[it->first];
+        double avg_distance = total_distance / num_readings;
+        double percentage = avg_distance / sum;
+
+        //std::cout << it->first << " => " << percentage * 100 << "%" <<
+        //   "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
+
+        if(percentage > best_dtw)
+        {
+            best_dtw = percentage;
+            prediction = it->first;
+        }
+    }
+    // Success or not
+    return (query.ts_tag.compare(prediction) == 0);
+}
+
+//compares query against dataset. returns 1 if
+//predicted value is correct, 0 o/w.
+int one_NN_single(taggedTS query,
+                  std::vector<taggedTS> dataset,
+                  double& best_dtw,
+                  taggedTS& prediction,
+                  int use_time_domain) {
+
+    std::vector<std::tuple<double, taggedTS>> results;
+    // Run kNN
+    kNN_worker(query, dataset, results, use_time_domain);
+    // Find smallest element
+    std::tuple<double, taggedTS> minimum = *std::min_element(results.begin(), results.end(),
+            [](std::tuple<double, taggedTS> o1, std::tuple<double, taggedTS> o2)
+    {
+        return std::get<0>(o1) < std::get<0>(o2);
+    });
+    // Prepare output variables
+    best_dtw = std::get<0>(minimum);
+    prediction = std::get<1>(minimum);
+    // Success or not
     return (query.ts_tag.compare(prediction.ts_tag) == 0);
 }
 
@@ -172,8 +251,14 @@ namespace std
 
 //compares query *list* against dataset. returns
 //number of correct classifications.
-int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain) 
+int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain, int knn) 
 {
+    if(knn > dataset.size() / 2)
+    {
+        cerr << "WARNING: 'k > dataset size / 2' (truncating 'k' to 'datasize / 2')" << std::endl;
+        knn = dataset.size() / 2;
+    }
+
     // Double quote a string
     // alfa --> "alfa"
     auto qs = [](std::string str)
@@ -195,17 +280,19 @@ int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, i
 	//#pragma omp parallel for reduction(+:successes)
     for (int i = 0; i < queryset.size(); ++i) 
 	{
-    	double best_dtw;
-    	taggedTS prediction;
-        successes += one_NN_single(queryset[i],
+        double best_dtw;
+        std::string prediction;
+    	//taggedTS prediction;
+        successes += kNN_single(queryset[i],
                                    dataset,
                                    best_dtw,
                                    prediction,
+                                   knn,
                                    use_time_domain);
 		cout << "{" << endl;
-		cout << kv(qs("nearest_neighbor"), qs(prediction.ts_tag));
-		cout << kv(qs("UID"), qs(prediction.UID));
-		cout << kv(qs("distance"), best_dtw);
+		cout << kv(qs("nearest_neighbor"), qs(prediction));
+		//cout << kv(qs("UID"), qs(prediction.UID));
+		cout << kv(qs("accuracy"), best_dtw);
 		cout << kv(qs("ground_truth"), qs(queryset[i].ts_tag));
 		cout << kv(qs("ground_truth_UID"), qs(queryset[i].UID), false);
 		

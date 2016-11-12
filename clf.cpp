@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     std::vector<taggedTS> reference =
       load_TSfile(ai.reference_filename_arg, ai.verbose_flag);
 
-    one_NN_many(query, reference, ai.use_time_domain_flag);
+    one_NN_many(query, reference, ai.use_time_domain_flag, ai.knn_arg);
 
     return 0;
 }
