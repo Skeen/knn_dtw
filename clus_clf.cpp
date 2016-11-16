@@ -109,11 +109,17 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < query.size(); ++i) {
         std::string ground_truth_tag = query_IT->ts_tag;
+		
+		double accuracy;
+		std::string best_match;
 
-        one_NN_single(*(query_IT++),
+        kNN_single(*(query_IT++),
                       reference,
+					  accuracy,
+					  best_match,
                       best_dtw,
                       prediction,
+					  1,
                       use_time_domain);
 
         tbl_query_entry.key = strdupa((prediction.ts_tag).c_str());

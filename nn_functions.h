@@ -183,6 +183,8 @@ int kNN_single(taggedTS query,
                   std::vector<taggedTS> dataset,
                   double& accuracy,
                   std::string& prediction,
+				  double& nearest_distance,
+				  taggedTS& nearest_neighbor,
                   int n,
                   int use_time_domain) {
 
@@ -196,6 +198,8 @@ int kNN_single(taggedTS query,
     {
         return std::get<0>(o1) < std::get<0>(o2);
     });
+	nearest_distance = std::get<0>(results[0]);
+	nearest_neighbor = std::get<1>(results[0]);
     // Calculate the most occuring element
     std::map<std::string, double> distmap;
     std::map<std::string, int> countmap;
@@ -254,70 +258,35 @@ int kNN_single(taggedTS query,
     return (query.ts_tag.compare(prediction) == 0);
 }
 
-//compares query against dataset. returns 1 if
-//predicted value is correct, 0 o/w.
-int one_NN_single(taggedTS query,
-                  std::vector<taggedTS> dataset,
-                  double& best_dtw,
-                  taggedTS& prediction,
-                  int use_time_domain) {
-
-    std::vector<std::tuple<double, taggedTS>> results;
-    // Run kNN
-    kNN_worker(query, dataset, results, use_time_domain);
-    // Find smallest element
-    std::tuple<double, taggedTS> minimum = *std::min_element(results.begin(), results.end(),
-            [](std::tuple<double, taggedTS> o1, std::tuple<double, taggedTS> o2)
-    {
-        return std::get<0>(o1) < std::get<0>(o2);
-    });
-    // Prepare output variables
-    best_dtw = std::get<0>(minimum);
-    prediction = std::get<1>(minimum);
-    // Success or not
-    return (query.ts_tag.compare(prediction.ts_tag) == 0);
-}
-
 int report_kNN_single(taggedTS query,
                   std::vector<taggedTS> dataset,
                   int n,
                   int use_time_domain,
                   bool last)
 {
-    bool succes = false;
+	cout << "{" << endl;
+	double accuracy;
+	double nearest_distance;
+	taggedTS nearest_neighbor;
+	std::string best_match;
+	bool succes = kNN_single(query,
+			dataset,
+			accuracy,
+			best_match,
+			nearest_distance,
+			nearest_neighbor,
+			n,
+			use_time_domain);
+	cout << kv(qs("nearest_neighbor"), qs(nearest_neighbor.ts_tag));
+	cout << kv(qs("nearest_neighbor_uid"), qs(nearest_neighbor.UID));
+	cout << kv(qs("distance"), nearest_distance);
+	cout << kv(qs("best_match"), qs(best_match));
+	cout << kv(qs("accuracy"), accuracy);
+	cout << kv(qs("ground_truth"), qs(query.ts_tag));
+	cout << kv(qs("ground_truth_UID"), qs(query.UID), false);
+	cout << "}" << (last ? "" : ",") << endl;
 
-    cout << "{" << endl;
-    if(n == 1)
-    {
-        double best_dtw;
-        taggedTS prediction;
-        succes = one_NN_single(query,
-                                   dataset,
-                                   best_dtw,
-                                   prediction,
-                                   use_time_domain);
-        cout << kv(qs("nearest_neighbor"), qs(prediction.ts_tag));
-        cout << kv(qs("nearest_neighbor_UID"), qs(prediction.UID));
-        cout << kv(qs("distance"), best_dtw);
-    }
-    else
-    {
-        double accuracy;
-        std::string prediction;
-        succes = kNN_single(query,
-                                   dataset,
-                                   accuracy,
-                                   prediction,
-                                   n,
-                                   use_time_domain);
-        cout << kv(qs("nearest_neighbor"), qs(prediction));
-        cout << kv(qs("accuracy"), accuracy);
-    }
-    cout << kv(qs("ground_truth"), qs(query.ts_tag));
-    cout << kv(qs("ground_truth_UID"), qs(query.UID), false);
-    cout << "}" << (last ? "" : ",") << endl;
-
-    return (succes ? 1 : 0);
+	return (succes ? 1 : 0);
 }
 
 //compares query *list* against dataset. returns
