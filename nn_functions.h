@@ -233,10 +233,15 @@ int kNN_single(taggedTS query,
         std::cout << kv(qs("total_distance"), total_distance);
         std::cout << kv(qs("num_readings"), num_readings);
         std::cout << kv(qs("avg_distance"), avg_distance, false);
-        std::cout << "}," << std::endl;
-
-        std::cout << it->first << " => " << percentage * 100 << "%" <<
-           "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
+		auto finale = distmap.end();
+		finale--;
+		if(it == finale)
+			std::cout << "}" << std::endl;
+		else
+			std::cout << "}," << std::endl;
+		
+       // std::cout << it->first << " => " << percentage * 100 << "%" <<
+       //    "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
 
         if(percentage > accuracy)
         {
