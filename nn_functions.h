@@ -14,6 +14,28 @@
 
 #define WINDOW_WIDTH 20
 
+// Identity std::to_string
+namespace std
+{
+    std::string to_string(std::string str)
+    {
+        return str;
+    }
+}
+
+// Double quote a string
+// alfa --> "alfa"
+auto qs = [](std::string str)
+{
+    return "\"" + str + "\"";
+};
+// Create a key-value pair for json
+// alfa, beta --> alfa : beta,\n
+auto kv = [](std::string str, auto value, bool comma = true)
+{
+    return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
+};
+
 using namespace fastdtw;
 
 struct taggedTS {
@@ -196,6 +218,7 @@ int kNN_single(taggedTS query,
         sum += it->second / countmap[it->first];
     }
     accuracy = 0;
+    std::cout << kv(qs("neighbors"), "[", false);
     // Output data
     for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
     {
@@ -204,8 +227,16 @@ int kNN_single(taggedTS query,
         double avg_distance = total_distance / num_readings;
         double percentage = avg_distance / sum;
 
-        //std::cout << it->first << " => " << percentage * 100 << "%" <<
-        //   "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
+        std::cout << "{" << std::endl;
+        std::cout << kv(qs("neighbor"), qs(it->first));
+        std::cout << kv(qs("percentage"), percentage);
+        std::cout << kv(qs("total_distance"), total_distance);
+        std::cout << kv(qs("num_readings"), num_readings);
+        std::cout << kv(qs("avg_distance"), avg_distance, false);
+        std::cout << "}," << std::endl;
+
+        std::cout << it->first << " => " << percentage * 100 << "%" <<
+           "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
 
         if(percentage > accuracy)
         {
@@ -213,6 +244,7 @@ int kNN_single(taggedTS query,
             prediction = it->first;
         }
     }
+    std::cout << "]," << std::endl;;
     // Success or not
     return (query.ts_tag.compare(prediction) == 0);
 }
@@ -240,29 +272,6 @@ int one_NN_single(taggedTS query,
     // Success or not
     return (query.ts_tag.compare(prediction.ts_tag) == 0);
 }
-
-// Identity std::to_string
-namespace std
-{
-    std::string to_string(std::string str)
-    {
-        return str;
-    }
-}
-
-// Double quote a string
-// alfa --> "alfa"
-auto qs = [](std::string str)
-{
-    return "\"" + str + "\"";
-};
-// Create a key-value pair for json
-// alfa, beta --> alfa : beta,\n
-auto kv = [](std::string str, auto value, bool comma = true)
-{
-    return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
-};
-
 
 int report_kNN_single(taggedTS query,
                   std::vector<taggedTS> dataset,
