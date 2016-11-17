@@ -207,6 +207,10 @@ int kNN_single(taggedTS query,
     // Weight function, '1 / distance' ensures that the closest neighbours count the most
     auto weightf = [](double distance)
     {
+        // Avoid NaNs and stuff
+        if(distance < 1)
+            return 1;
+        // Usual case
         return 1 / distance;
     };
     // Find cummulative distance
