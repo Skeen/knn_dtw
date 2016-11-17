@@ -209,7 +209,7 @@ int kNN_single(taggedTS query,
     {
         // Avoid NaNs and stuff
         if(distance < 1)
-            return 1;
+            return 1.0;
         // Usual case
         return 1 / distance;
     };
