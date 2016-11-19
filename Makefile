@@ -9,9 +9,9 @@ OBJ_FILES += obj/cmdline.o
 # We depend on object files
 DEP_FILES := $(OBJ_FILES:.o=.d)
 # We also depend on executable dependencies
-DEP_FILES += obj/clf.d obj/clus_clf.d obj/compare.d
+DEP_FILES += obj/clf.d
 
-all: clf.run clus.run cmp.run
+all: clf.run
 
 # Compile cpp files
 obj/%.o: includes/%.cpp
@@ -37,12 +37,6 @@ includes/cmdline.c: includes/args_parser.gengetopt
 
 ## Generate executables by linking
 clf.run: $(OBJ_FILES) obj/clf.o
-	$(CXX) $(CXX_FLAGS) -o $@ $^
-
-clus.run: $(OBJ_FILES) obj/clus_clf.o
-	$(CXX) $(CXX_FLAGS) -o $@ $^
-
-cmp.run: $(OBJ_FILES) obj/compare.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^
 
 clean:

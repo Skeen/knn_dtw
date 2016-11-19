@@ -22,7 +22,6 @@ namespace std
         return str;
     }
 }
-
 // Double quote a string
 // alfa --> "alfa"
 auto qs = [](std::string str)
@@ -33,7 +32,14 @@ auto qs = [](std::string str)
 // alfa, beta --> alfa : beta,\n
 auto kv = [](std::string str, auto value, bool comma = true)
 {
-    return str + " : " + std::to_string(value) + (comma ? "," : "") + "\n";
+    cout << str << " : " << std::to_string(value) << (comma ? "," : "") << endl;
+};
+// Create an array or object for json
+auto wrp = [](std::string pre, auto wrapped, std::string post, bool comma = false)
+{
+    cout << pre << endl;
+    wrapped();
+    cout << post << (comma ? "," : "") << endl;
 };
 
 using namespace fastdtw;
@@ -167,8 +173,7 @@ void kNN_worker(taggedTS query,
             continue;
         }
 
-        double this_result =
-          fastDTWdist(query, dataset[i], use_time_domain);
+        double this_result = fastDTWdist(query, dataset[i], use_time_domain);
 
 		#pragma omp critical
         {
@@ -177,214 +182,74 @@ void kNN_worker(taggedTS query,
     }
 }
 
-//compares query against dataset. returns 1 if
-//predicted value is correct, 0 o/w.
-int kNN_single(taggedTS query,
-                  std::vector<taggedTS> dataset,
-                  double& accuracy,
-                  std::string& prediction,
-				  double& nearest_distance,
-				  taggedTS& nearest_neighbor,
-                  int n,
-                  int use_time_domain) {
-
+// compares query against dataset.
+void kNN_single(taggedTS query,
+                std::vector<taggedTS> dataset,
+                int use_time_domain) 
+{
+    // Vector of (distance, timeseries)
     std::vector<std::tuple<double, taggedTS>> results;
-    // Run kNN
+    // Run kNN, filling the above vector
     kNN_worker(query, dataset, results, use_time_domain);
-    // Sort the readings according to distance
-    // TODO: Use nth_element instead
-    std::sort(results.begin(), results.end(),
-            [](std::tuple<double, taggedTS> o1, std::tuple<double, taggedTS> o2)
+    // Output the neighbours array
+    wrp(qs("neighbours") + " : [", [&results]()
     {
-        return std::get<0>(o1) < std::get<0>(o2);
-    });
-	nearest_distance = std::get<0>(results[0]);
-	nearest_neighbor = std::get<1>(results[0]);
-    // Calculate the most occuring element
-    std::map<std::string, double> distmap;
-    std::map<std::string, int> countmap;
-
-    // Weight function, '1 / distance' ensures that the closest neighbours count the most
-    auto weightf = [](double distance)
-    {
-        // Avoid NaNs and stuff
-        if(distance < 1)
-            return 1.0;
-        // Usual case
-        return 1 / distance;
-    };
-    // Find cummulative distance
-    for(int x=0; x<n; x++)
-    {
-        distmap[std::get<1>(results[x]).ts_tag] += weightf(std::get<0>(results[x]));
-        countmap[std::get<1>(results[x]).ts_tag]++;
-    }
-    // Find sum of cummulative distances
-    double sum = 0;
-    for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
-    {
-        sum += it->second / countmap[it->first];
-    }
-    accuracy = 0;
-    std::cout << kv(qs("neighbors"), "[", false);
-    // Output data
-    for (std::map<std::string, double>::iterator it=distmap.begin(); it!=distmap.end(); ++it)
-    {
-        double total_distance = it->second;
-        int num_readings = countmap[it->first];
-        double avg_distance = total_distance / num_readings;
-        double percentage = avg_distance / sum;
-
-        std::cout << "{" << std::endl;
-        std::cout << kv(qs("neighbor"), qs(it->first));
-        std::cout << kv(qs("percentage"), percentage);
-        std::cout << kv(qs("total_distance"), total_distance);
-        std::cout << kv(qs("num_readings"), num_readings);
-        std::cout << kv(qs("avg_distance"), avg_distance, false);
-		auto finale = distmap.end();
-		finale--;
-		if(it == finale)
-			std::cout << "}" << std::endl;
-		else
-			std::cout << "}," << std::endl;
-		
-       // std::cout << it->first << " => " << percentage * 100 << "%" <<
-       //    "(" << avg_distance << " (" << total_distance << " / " << num_readings << "))" << endl;
-
-        if(percentage > accuracy)
+        // Output formatter (outputs a single neighbor)
+        auto outputter = [](bool last)
         {
-            accuracy = percentage;
-            prediction = it->first;
-        }
-    }
-    std::cout << "]," << std::endl;;
-    // Success or not
-    return (query.ts_tag.compare(prediction) == 0);
+            return [last](std::tuple<double, taggedTS> result)
+            {
+                double distance = std::get<0>(result);
+                taggedTS neighbor = std::get<1>(result);
+                wrp("{", [last, distance, neighbor]()
+                {
+                    kv(qs("distance"), distance);
+                    kv(qs("tag"), qs(neighbor.ts_tag));
+                    kv(qs("UID"), qs(neighbor.UID));
+                    kv(qs("id"), neighbor.id, false);
+                }, "}", last);
+            };
+        };
+
+        // Output 0...n-1
+        for_each(results.begin(), results.end()-1, outputter(false));
+        // Output n
+        outputter(true)(results.back());
+    }, "]", true);
 }
 
-int report_kNN_single(taggedTS query,
-                  std::vector<taggedTS> dataset,
-                  int n,
-                  int use_time_domain,
-                  bool last)
+// compares query *list* against dataset.
+void one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain)
 {
-	cout << "{" << endl;
-	double accuracy;
-	double nearest_distance;
-	taggedTS nearest_neighbor;
-	std::string best_match;
-	bool succes = kNN_single(query,
-			dataset,
-			accuracy,
-			best_match,
-			nearest_distance,
-			nearest_neighbor,
-			n,
-			use_time_domain);
-	cout << kv(qs("nearest_neighbor"), qs(nearest_neighbor.ts_tag));
-	cout << kv(qs("nearest_neighbor_uid"), qs(nearest_neighbor.UID));
-	cout << kv(qs("distance"), nearest_distance);
-	cout << kv(qs("best_match"), qs(best_match));
-	cout << kv(qs("accuracy"), accuracy);
-	cout << kv(qs("ground_truth"), qs(query.ts_tag));
-	cout << kv(qs("ground_truth_UID"), qs(query.UID), false);
-	cout << "}" << (last ? "" : ",") << endl;
-
-	return (succes ? 1 : 0);
-}
-
-//compares query *list* against dataset. returns
-//number of correct classifications.
-int one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain, int knn) 
-{
-    if(knn > dataset.size() / 2)
+    // Output the outer array
+    wrp("[ ", [&]()
     {
-        cerr << "WARNING: 'k > dataset size / 2' (truncating 'k' to 'datasize / 2')" << std::endl;
-        knn = dataset.size() / 2;
-    }
-
-
-   	int successes = 0;
-
-	cout << "{" << endl;
-    cout << kv(qs("data"), "[", false);
-
-	//#pragma omp parallel for reduction(+:successes)
-    for (int i = 0; i < queryset.size(); ++i) 
-	{
-        successes += report_kNN_single(queryset[i],
+        // Output one element from the query-set
+        auto outputter = [&](bool last)
+        {
+            return [&](taggedTS query)
+            {
+                wrp("{", [&]()
+                {
+                    // Output all neighbors of this query
+                    kNN_single(query,
                                dataset,
-                               knn,
-                               use_time_domain,
-                               (i == queryset.size()-1));
-    }
+                               use_time_domain);
 
-    fflush(stdout);
+                    // Output information on the query itself
+                    wrp(qs("ground_truth") + " : {", [&]()
+                    {
+                        kv(qs("tag"), qs(query.ts_tag));
+                        kv(qs("UID"), qs(query.UID));
+                        kv(qs("id"), query.id, false);
+                    }, "}");
+                }, "}", last);
+            };
+        };
 
-	cout << "]," << endl;
-	cout << kv(qs("result"), "{", false);
-	cout << kv(qs("successes"), successes);
-	cout << kv(qs("trials"), queryset.size());
-	cout << kv(qs("accuracy"), ((float) 100*successes / queryset.size()), false);
-	cout << "}" << endl;
-	cout << "}" << endl;
-    return successes;
-}
-
-int cluster_std_dev(std::vector<taggedTS>::iterator cluster,
-                    std::string clustag,
-                    int vecs_in_cluster,
-                    int verbose,
-                    float& mean,
-                    float& sigma,
-                    int use_time_domain) {
-
-    if (vecs_in_cluster < 2) {
-        cout << "Clusters are size 2 or greater.\n";
-        abort();
-    }
-
-    std::vector<taggedTS>::iterator cluster_IT = cluster;
-    std::vector<double> distances;
-
-    if (verbose) {
-        cout << vecs_in_cluster << " vectors in cluster: " << clustag << endl;
-    }
-
-    for (int i = 0; i < vecs_in_cluster - 1; ++i) {
-        std::vector<taggedTS>::iterator cluster_IT_i = cluster_IT;
-        // we want to compare the timeseries at cluster_IT_i
-        // with all the ones after it, but in the cluster.
-        for (int j = i + 1; j < vecs_in_cluster; ++j) {
-            distances.push_back(
-                    fastDTWdist(*(++cluster_IT_i), *cluster_IT, use_time_domain));
-        }
-        ++cluster_IT;
-    }
-
-    // go back to head in case we want to use this again
-    // for some reason later
-    cluster_IT = cluster;
-
-    float mean_accum = 0;
-    for (int i = 0; i < distances.size(); ++i) {
-        mean_accum += distances[i];
-    }
-    mean = mean_accum / distances.size();
-
-    if (verbose) {
-        cout << "Got mean: " << mean << endl;
-    }
-
-    float var_accum = 0;
-    for (int i = 0; i < distances.size(); ++i) {
-        var_accum += (mean - distances[i]) * (mean - distances[i]);
-    }
-    sigma = std::sqrt(var_accum / distances.size());
-
-    if (verbose) {
-        cout << "Got std.dev.: " << sigma << endl;
-    }
-
-    return 0;
+        // Output 0...n-1
+        for_each(queryset.begin(), queryset.end()-1, outputter(false));
+        // Output n
+        outputter(true)(queryset.back());
+    }, "]");
 }

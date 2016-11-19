@@ -5,7 +5,6 @@ purpose "Performs classification on timeseries."
 # Options
 option "query_filename" - "Name of file containing query timeseries." string required
 option "reference_filename" - "Name of file containing reference timeseries." string required
-option "knn" - "Number of neighbours to consider in kNN." int default="1" required
 option "x" - "UID of first timeseries to compare." optional string
 option "y" - "UID of second timeseries to compare." optional string
 option "verbose" v "Provide detailed output." flag off
