@@ -205,9 +205,9 @@ void kNN_single(taggedTS query,
                 {
                     kv(qs("distance"), distance);
                     kv(qs("tag"), qs(neighbor.ts_tag));
-                    kv(qs("UID"), qs(neighbor.UID));
-                    kv(qs("id"), neighbor.id, false);
-                }, "}", last);
+                    kv(qs("UID"), qs(neighbor.UID), false);
+                    //kv(qs("id"), neighbor.id, false);
+                }, "}", !last);
             };
         };
 
@@ -240,10 +240,10 @@ void one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, 
                     wrp(qs("ground_truth") + " : {", [&]()
                     {
                         kv(qs("tag"), qs(query.ts_tag));
-                        kv(qs("UID"), qs(query.UID));
-                        kv(qs("id"), query.id, false);
+                        kv(qs("UID"), qs(query.UID), false);
+                        //kv(qs("id"), query.id, false);
                     }, "}");
-                }, "}", last);
+                }, "}", !last);
             };
         };
 

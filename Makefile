@@ -39,6 +39,12 @@ includes/cmdline.c: includes/args_parser.gengetopt
 clf.run: $(OBJ_FILES) obj/clf.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^
 
+run: clf.run
+	./clf.run --query_filename=data/qry.job --reference_filename=data/ref.job
+
+run_format: clf.run
+	./clf.run --query_filename=data/qry.job --reference_filename=data/ref.job | python -m json.tool
+
 clean:
 	rm -f *.run
 	rm -rf obj/
@@ -46,4 +52,4 @@ clean:
 
 -include $(DEP_FILES)
 
-.PHONY: clean all
+.PHONY: clean all run run_format
