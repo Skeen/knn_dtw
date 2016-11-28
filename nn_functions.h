@@ -162,17 +162,26 @@ std::vector<taggedTS> load_TSfile(std::string fname, int verbose) {
 void kNN_worker(taggedTS query,
                   std::vector<taggedTS> dataset,
                   std::vector<std::tuple<double, taggedTS>>& results,
-                  int use_time_domain) {
+                  int use_time_domain,
+				  bool do_modelling) {
 
 	#pragma omp parallel for
-    for (int i = 0; i < dataset.size(); ++i) {
-
-        if (dataset[i].id == query.id) {
-            cerr << "WARNING: query series is in reference space. Skipping it!\n";
-            ++i;
+    for (int i = 0; i < dataset.size(); ++i) 
+	{
+		if (dataset[i].UID == query.UID) 
+		{
+            cerr << "WARNING: query series is in reference space. Skipping it!" << endl;
+            //++i;
             continue;
         }
-
+		
+		if(do_modelling && dataset[i].ts_tag != query.ts_tag)
+		{
+			cerr << "WARNING: query series isnt same tag. Skipping it!" << endl;
+			//++i;
+			continue;
+		}
+		
         double this_result = fastDTWdist(query, dataset[i], use_time_domain);
 
 		#pragma omp critical
@@ -185,13 +194,19 @@ void kNN_worker(taggedTS query,
 // compares query against dataset.
 void kNN_single(taggedTS query,
                 std::vector<taggedTS> dataset,
-                int use_time_domain) 
+                int use_time_domain,
+				bool do_modelling) 
 {
     // Vector of (distance, timeseries)
     std::vector<std::tuple<double, taggedTS>> results;
     // Run kNN, filling the above vector
-    kNN_worker(query, dataset, results, use_time_domain);
-    // Output the neighbours array
+    kNN_worker(query, dataset, results, use_time_domain, do_modelling);
+    if(results.size() < 1)
+	{
+		wrp(qs("neighbours") + " : [", [](){}, "]", true);
+		return;
+	}
+	// Output the neighbours array
     wrp(qs("neighbours") + " : [", [&results]()
     {
         // Output formatter (outputs a single neighbor)
@@ -219,9 +234,14 @@ void kNN_single(taggedTS query,
 }
 
 // compares query *list* against dataset.
-void one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain)
+void one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, int use_time_domain, bool do_modelling)
 {
-    // Output the outer array
+	if(queryset.size() < 1)
+	{
+		cerr << "Invalid query set, shouldnt be empty.";
+		return;
+	}
+	// Output the outer array
     wrp("[ ", [&]()
     {
         // Output one element from the query-set
@@ -234,7 +254,8 @@ void one_NN_many(std::vector<taggedTS> queryset, std::vector<taggedTS> dataset, 
                     // Output all neighbors of this query
                     kNN_single(query,
                                dataset,
-                               use_time_domain);
+                               use_time_domain,
+							   do_modelling);
 
                     // Output information on the query itself
                     wrp(qs("ground_truth") + " : {", [&]()
