@@ -162,26 +162,11 @@ std::vector<taggedTS> load_TSfile(std::string fname, int verbose) {
 void kNN_worker(taggedTS query,
                   std::vector<taggedTS> dataset,
                   std::vector<std::tuple<double, taggedTS>>& results,
-                  int use_time_domain,
-				  bool do_modelling) {
+                  int use_time_domain) {
 
 	#pragma omp parallel for
     for (int i = 0; i < dataset.size(); ++i) 
 	{
-		if (dataset[i].UID == query.UID) 
-		{
-            cerr << "WARNING: query series is in reference space. Skipping it!" << endl;
-            //++i;
-            continue;
-        }
-		
-		if(do_modelling && dataset[i].ts_tag != query.ts_tag)
-		{
-			cerr << "WARNING: query series isnt same tag. Skipping it!" << endl;
-			//++i;
-			continue;
-		}
-		
         double this_result = fastDTWdist(query, dataset[i], use_time_domain);
 
 		#pragma omp critical
@@ -198,9 +183,18 @@ void kNN_single(taggedTS query,
 				bool do_modelling) 
 {
     // Vector of (distance, timeseries)
-    std::vector<std::tuple<double, taggedTS>> results;
-    // Run kNN, filling the above vector
-    kNN_worker(query, dataset, results, use_time_domain, do_modelling);
+	std::vector<std::tuple<double, taggedTS>> results;
+	// Remove different websites if we are preparing a modelling set.
+	dataset.erase(std::remove_if(
+				dataset.begin(), 
+				dataset.end(),
+				[query, do_modelling](taggedTS x)
+				{
+					return (x.UID == query.UID) || (do_modelling && x.ts_tag != query.ts_tag);
+				}),
+			dataset.end());
+	// Run kNN, filling the above vector
+    kNN_worker(query, dataset, results, use_time_domain);
     if(results.size() < 1)
 	{
 		wrp(qs("neighbours") + " : [", [](){}, "]", true);
